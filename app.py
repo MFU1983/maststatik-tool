@@ -1,6 +1,8 @@
 import streamlit as st
 import matplotlib.pyplot as plt
+from fpdf import FPDF
 from io import BytesIO
+from PIL import Image
 
 # Materialwerte
 E = 210000  # Elastizitätsmodul [N/mm²]
@@ -35,13 +37,52 @@ mastbilder = {
     "DPM24 (HEM240)": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7e/HEM_profile.png/120px-HEM_profile.png",
 }
 
+# PDF-Erzeugungsfunktion mit Logo und Layout
+def erstelle_pdf_bericht(bericht_lines, logo_path=None):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    
+    if logo_path:
+        pdf.image(logo_path, x=10, y=8, w=30)
+        pdf.set_y(30)
+    else:
+        pdf.set_y(10)
+    
+    pdf.set_font("Arial", 'B', 16)
+    pdf.cell(0, 10, "Maststatik Berechnungsbericht", ln=True, align='C')
+    pdf.ln(10)
+    
+    pdf.set_font("Arial", size=12)
+    for line in bericht_lines:
+        pdf.multi_cell(0, 8, line)
+    
+    pdf_output = BytesIO()
+    pdf.output(pdf_output)
+    pdf_output.seek(0)
+    return pdf_output
+
+# Logo lokal einbinden
+logo_path = "492a83b2-c148-4843-ad75-9544f8d35c6d.png"
+
 # UI Aufbau
-st.title("Maststatik-Rechner mit Bericht-Download")
+import os
+if not os.path.isfile(logo_path):
+    logo_path = None  # Falls Logo nicht da, kein Fehler
 
-# Masttyp + Bild
+import streamlit as st
+import matplotlib.pyplot as plt
+
+st.set_page_config(page_title="Maststatik Tool", layout="wide")
+
+col1, col2 = st.columns([1, 5])
+with col1:
+    if logo_path:
+        st.image(logo_path, width=120)
+with col2:
+    st.markdown("<h1 style='margin-bottom: 0;'>Maststatik-Rechner mit Bericht-Download</h1>", unsafe_allow_html=True)
+
 masttyp = st.selectbox("Masttyp auswählen", options=list(mastdaten.keys()))
-st.image(mastbilder[masttyp], caption=f"Masttyp {masttyp}", width=150)
-
 mastlaenge = st.number_input("Mastlänge L [m]", min_value=1.0, value=10.0)
 angriffshoehe = st.number_input("Angriffshöhe h [m]", min_value=0.1, value=5.2)
 
@@ -53,7 +94,6 @@ F_B1 = st.number_input("B1) einseitiger Zug [kN]", min_value=0.0, value=3.0)
 F_B2 = st.number_input("B2) symmetrische Querlast [kN]", min_value=0.0, value=2.0)
 
 st.header("Fundament-Auswahl")
-
 fundament_masttyp = st.selectbox("Fundament Masttyp", options=list(fundament_faktoren.keys()))
 fundament_ek = st.selectbox("Einwirkungskombination (EK)", options=["EK1", "EK2", "EK3"])
 
@@ -109,13 +149,11 @@ if st.button("Berechnen"):
     bericht.append(f"  Bemessungslast in x-Richtung: {bemessung_x:.2f} kN")
     bericht.append(f"  Bemessungslast in y-Richtung: {bemessung_y:.2f} kN")
     
-    # Bericht zusammenfügen als String
-    bericht_text = "\n".join(bericht)
-    
-    # Download-Button für Bericht als Textdatei
+    # Bericht generieren und Download anbieten
+    pdf_data = erstelle_pdf_bericht(bericht, logo_path=logo_path)
     st.download_button(
-        label="Bericht herunterladen (Textdatei)",
-        data=bericht_text,
-        file_name="maststatik_bericht.txt",
-        mime="text/plain"
+        label="PDF Bericht herunterladen",
+        data=pdf_data,
+        file_name="maststatik_bericht.pdf",
+        mime="application/pdf"
     )
